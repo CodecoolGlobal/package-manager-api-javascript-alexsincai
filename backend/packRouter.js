@@ -4,55 +4,54 @@ const path = require("path");
 const fileReader = require("./fileReader");
 const filePath = path.join(`${__dirname}/pkgs.json`);
 
-const nextId = (packs) =>
-    packs
-        .map((p) => p.id)
-        .sort((a, b) => Math.sign(a - b))
-        .pop() + 1;
+const helpers = {
+    nextId: (packs) =>
+        packs
+            .map((p) => p.id)
+            .sort((a, b) => Math.sign(a - b))
+            .pop() + 1,
+    getLatest: (list) =>
+        list
+            .map((l) => l)
+            .sort((a, b) =>
+                Math.sign(
+                    new Date(b.date).getTime() - new Date(a.date).getTime()
+                )
+            )[0],
+    updateVersion: (version) =>
+        version
+            .split(".")
+            .map((d) => parseInt(d))
+            .map((d, i, a) => (i < a.length - 1 ? d : d + 1))
+            .join("."),
+    today: () => {
+        const date = new Date();
+        return [
+            date.getFullYear(),
+            `0${date.getMonth()}`.slice(-2),
+            `0${date.getDate()}`.slice(-2),
+        ].join("-");
+    },
+    newRelease: (pack) => {
+        const latest = helpers.getLatest(pack.releases);
+        const version = helpers.updateVersion(latest.version);
+        const date = helpers.today();
 
-const getLatest = (list) =>
-    list
-        .map((l) => l)
-        .sort((a, b) =>
-            Math.sign(new Date(b.date).getTime() - new Date(a.date).getTime())
-        )[0];
+        pack.releases = [{ date, version }, ...pack.releases];
+        return pack;
+    },
+    update: (pack, body) => {
+        const { name, description, dependencies, releases } = body;
 
-const updateVersion = (version) =>
-    version
-        .split(".")
-        .map((d) => parseInt(d))
-        .map((d, i, a) => (i < a.length - 1 ? d : d + 1))
-        .join(".");
+        pack.name = name ? name : pack.name;
+        pack.description = description ? description : pack.description;
+        pack.dependencies = dependencies
+            ? JSON.parse(dependencies)
+            : pack.dependencies;
+        pack.releases = releases ? JSON.parse(releases) : pack.releases;
 
-const today = () => {
-    const date = new Date();
-    return [
-        date.getFullYear(),
-        `0${date.getMonth()}`.slice(-2),
-        `0${date.getDate()}`.slice(-2),
-    ].join("-");
-};
-
-const newRelease = (pack) => {
-    const latest = getLatest(pack.releases);
-    const version = updateVersion(latest.version);
-    const date = today();
-
-    pack.releases = [{ date, version }, ...pack.releases];
-    return pack;
-};
-
-const update = (pack, body) => {
-    const { name, description, dependencies, releases } = body;
-
-    pack.name = name ? name : pack.name;
-    pack.description = description ? description : pack.description;
-    pack.dependencies = dependencies
-        ? JSON.parse(dependencies)
-        : pack.dependencies;
-    pack.releases = releases ? JSON.parse(releases) : pack.releases;
-
-    return pack;
+        return pack;
+    },
 };
 
 router
@@ -67,7 +66,7 @@ router
     })
     .post("/", async (req, res) => {
         const add = {
-            id: nextId(res.locals.data.packages),
+            id: helpers.nextId(res.locals.data.packages),
             name: req.body.name,
             description: "",
             dependencies: [],
@@ -82,7 +81,6 @@ router
         res.send(await fileReader.write(filePath, res.locals.data));
     })
     .get("/:id", (req, res) => {
-        console.log(nextId(res.locals.data.packages));
         res.send(
             res.locals.data.packages.find(
                 (p) => p.id === parseInt(req.params.id)
@@ -92,7 +90,9 @@ router
     .put("/:id", async (req, res) => {
         res.locals.data.packages = res.locals.data.packages.map((p) => {
             if (p.id !== parseInt(req.params.id)) return p;
-            return !req.body.releases ? newRelease(p) : update(p, req.body);
+            return !req.body.releases
+                ? helpers.newRelease(p)
+                : helpers.update(p, req.body);
         });
 
         res.send(await fileReader.write(filePath, res.locals.data));
