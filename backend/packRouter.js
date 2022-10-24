@@ -10,6 +10,38 @@ const nextId = (packs) =>
         .sort((a, b) => Math.sign(a - b))
         .pop() + 1;
 
+const getLatest = (list) =>
+    list
+        .map((l) => l)
+        .sort((a, b) =>
+            Math.sign(new Date(b.date).getTime() - new Date(a.date).getTime())
+        )[0];
+
+const updateVersion = (version) =>
+    version
+        .split(".")
+        .map((d) => parseInt(d))
+        .map((d, i, a) => (i < a.length - 1 ? d : d + 1))
+        .join(".");
+
+const today = () => {
+    const date = new Date();
+    return [
+        date.getFullYear(),
+        `0${date.getMonth()}`.slice(-2),
+        `0${date.getDate()}`.slice(-2),
+    ].join("-");
+};
+
+const newRelease = (pack) => {
+    const latest = getLatest(pack.releases);
+    const version = updateVersion(latest.version);
+    const date = today();
+
+    pack.releases = [{ date, version }, ...pack.releases];
+    return pack;
+};
+
 router
     .use(async (req, res, next) => {
         console.clear();
@@ -48,44 +80,10 @@ router
         res.locals.data.packages = res.locals.data.packages.map((p) => {
             if (p.id !== parseInt(req.params.id)) return p;
 
-            console.clear();
-
             if (!req.body.releases) {
-                const latest = p.releases.sort((a, b) =>
-                    Math.sign(
-                        new Date(b.date).getTime() - new Date(a.date).getTime()
-                    )
-                )[0];
-
-                const version = latest.version
-                    .split(".")
-                    .map((d) => parseInt(d))
-                    .map((d, i, a) => (i < a.length - 1 ? d : d + 1))
-                    .join(".");
-
-                const date = new Date();
-                p.releases = [
-                    {
-                        date: [
-                            `0${date.getFullYear()}`.slice(-2),
-                            `0${date.getMonth()}`.slice(-2),
-                            `0${date.getDate()}`.slice(-2),
-                        ].join("-"),
-                        version,
-                    },
-                    ...p.releases,
-                ];
+                p = newRelease(p);
             } else {
                 const { name, description, dependencies, releases } = req.body;
-
-                console.log({
-                    name,
-                    description,
-                    dependencies: dependencies
-                        ? JSON.parse(dependencies)
-                        : null,
-                    releases: releases ? JSON.parse(releases) : null,
-                });
 
                 p.name = name ? name : p.name;
                 p.description = description ? description : p.description;
