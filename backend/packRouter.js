@@ -42,6 +42,19 @@ const newRelease = (pack) => {
     return pack;
 };
 
+const update = (pack, body) => {
+    const { name, description, dependencies, releases } = body;
+
+    pack.name = name ? name : pack.name;
+    pack.description = description ? description : pack.description;
+    pack.dependencies = dependencies
+        ? JSON.parse(dependencies)
+        : pack.dependencies;
+    pack.releases = releases ? JSON.parse(releases) : pack.releases;
+
+    return pack;
+};
+
 router
     .use(async (req, res, next) => {
         console.clear();
@@ -79,20 +92,7 @@ router
     .put("/:id", async (req, res) => {
         res.locals.data.packages = res.locals.data.packages.map((p) => {
             if (p.id !== parseInt(req.params.id)) return p;
-
-            if (!req.body.releases) {
-                p = newRelease(p);
-            } else {
-                const { name, description, dependencies, releases } = req.body;
-
-                p.name = name ? name : p.name;
-                p.description = description ? description : p.description;
-                p.dependencies = dependencies
-                    ? JSON.parse(dependencies)
-                    : p.dependencies;
-                p.releases = releases ? JSON.parse(releases) : p.releases;
-            }
-            return p;
+            return !req.body.releases ? newRelease(p) : update(p, req.body);
         });
 
         res.send(await fileReader.write(filePath, res.locals.data));
